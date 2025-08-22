@@ -1,0 +1,65 @@
+//********************************************/
+//Universidad del Valle de Guatemala
+//BE3029 - Electrónica Digital 2
+// Fátima Camposeco-23122
+//08/2025
+// Protyecto 1
+//MCU: ESP32 dev kit 1.0
+//********************************************/
+
+#include <Arduino.h>
+#include <stdint.h>
+
+//Definir pines para sensor de temperatura
+#define PIN_LM35 = 34 //ADC del esp32
+#define PIN_boton1 = 27 
+
+//Prototipo de funciones 
+void getADCPromedio(void);
+
+//Variables globales 
+int adcRaw = 0;
+float promedioLecturas =0;
+float temperaturaC =0;
+
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIN_boton1, INPUT_PULLDOWN);
+  pinMode(PIN_LM35, INPUT);
+}
+
+void loop() {
+  //Solo se va a leer si se presiona el boton
+  if (digitalRead(PIN_boton1)== LOW){
+    promedioLecturas =getADCPromedio(); //promedio de 10 lecturas
+    int mV = analogReadMilliVolts(PIN_LM35); //leer en mV
+    temperaturaC = mv/ 10.0; //con el sensor 10mV=1C
+
+    //Mostrar los valores obtenidos
+    Serial.print("ADC promedio: ");
+    Serial.println(promedioLecturas);
+    Serial.print("Temperatura: ");
+    Serial.print(temperaturaC);
+    Serial.println(" °C");
+
+    delay(500); //pausa entre lecturas
+
+  }
+
+}
+
+// Función para promedio de lecturas ADC
+void getADCPromedio(void){
+  int numeroLecturas = 10; // Número de muestras
+  int sumaLecturas = 0; // Sumatoria de lecturas
+
+for(int k= 0; k < numeroLecturas; k++){
+sumaLecturas += analogRead(PIN_LM35);
+delay(1);
+}
+float promedioLecturas = sumaLecturas / (numeroLecturas*1.0);
+return promedio;
+
+}
+
