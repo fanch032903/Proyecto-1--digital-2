@@ -1,94 +1,107 @@
-/********************************************/
-// Universidad del Valle de Guatemala
-// BE3029 - Electrónica Digital 2
-// Fátima Camposeco - 23122
-// 08/2025
-// Proyecto 1 
-// MCU: ESP32 Dev Kit V1
-/********************************************/
+//********************************************/
+//Universidad del Valle de Guatemala
+//BE3029 - Electrónica Digital 2
+// Fátima Camposeco-23122
+//08/2025
+// Proyecto 1
+//MCU: ESP32 dev kit 1.0
+//********************************************/
 
 #include <Arduino.h>
 #include <stdint.h>
 
-//=== Definir Pines ===
+//Definir pines para sensor de temperatura
+#define PIN_LM35   34 //ADC del esp32
+#define PIN_boton1 18 
 
-// Sensor y botón
-#define PIN_LM35    34   // ADC 
-#define PIN_BOTON1  36   // Botón (INPUT_PULLUP)
-
-// LED RGB
+//LED RGB-separada
 #define LED_R 5 //Roja
-#define LED_G 18 // verde
-#define LED_B 19 // Amarilla 
+#define LED_G 2 //Verde
+#define LED_B 4 //Amarilla 
 
-// Canales PWM
-#define CH_R 0 //LED Roja 
-#define CH_G 1 //LED Verde
-#define CH_B 2 //LED amarilla 
+//PIN SERVO
+#define SERVO_PIN 19
 
-// Datos PWM para LEDs
-#define FREQ 5000       // Frecuencia PWM
-#define RESOLUTION 8    // Resolución PWM (0–255)
+//Canales PWM
+#define CH_R 0       //LED Roja
+#define CH_G 1       //LED Verde
+#define CH_B 2       //LED Amarilla
+#define CH_SERVO 3   //Servo
 
+//Definimos datos PWM para LEDS
+#define FREQ 5000 
+#define RESOLUTION 8 //Resolución PWM (0-255)
 
-//=== Variables globales==
+//Datos PWM para Servo
+#define FREQ_SERVO 50
+#define RESOLUTION_SERVO 8 
 
-float temperaturaC = 0;
-float promedioLecturas = 0;
-
-//===Funciones ===
+//Prototipo de funciones 
 float getADCPromedio(void);
 void actualizarSemaforo(float temp);
+void actualizarServo(float temp);
+
+//Variables globales 
+int adcRaw = 0; 
+float promedioLecturas = 0; 
+float temperaturaC = 0; 
+int dutyServo = 0;
 
 
 void setup() {
   Serial.begin(115200);
 
-  // Configuración de pines
-  pinMode(PIN_BOTON1, INPUT_PULLUP);
+  //Pines Sensor y botón 
+  pinMode(PIN_boton1, INPUT_PULLUP);
   pinMode(PIN_LM35, INPUT);
 
-  // PWM para LEDs
+  //PWM para LEDs
   ledcSetup(CH_R, FREQ, RESOLUTION);
   ledcSetup(CH_G, FREQ, RESOLUTION);
   ledcSetup(CH_B, FREQ, RESOLUTION);
 
-  ledcAttachPin(LED_R, CH_R); //  LEDS con PWM 
+  ledcAttachPin(LED_R, CH_R);
   ledcAttachPin(LED_G, CH_G);
   ledcAttachPin(LED_B, CH_B);
+
+  //PWM para servo 
+  ledcSetup(CH_SERVO, FREQ_SERVO, RESOLUTION_SERVO);
+  ledcAttachPin(SERVO_PIN, CH_SERVO);
+
+  //Servo inicia en centro
+  ledcWrite(CH_SERVO, 19);
 }
 
-
 void loop() {
-  if (digitalRead(PIN_BOTON1) == LOW) {  // Solo mide al presionar el botón
-    promedioLecturas = getADCPromedio();
-    int mV = analogReadMilliVolts(PIN_LM35);
-    temperaturaC = mV / 10.0; // LM35: 10 mV = 1 °C
+  //Solo se va a leer si se presiona el botón
+  if (digitalRead(PIN_boton1) == LOW) {
+    promedioLecturas = getADCPromedio(); 
+    int mV = analogReadMilliVolts(PIN_LM35); 
+    temperaturaC = mV / 10.0; 
 
-    // Mostrar en monitor para verificar las lecturas 
+    //Mostrar valores
     Serial.print("ADC promedio: ");
     Serial.println(promedioLecturas);
     Serial.print("Temperatura: ");
     Serial.print(temperaturaC);
     Serial.println(" °C");
 
-    // Actualizar LEDS 
+    //Actualizar LEDs y Servo
     actualizarSemaforo(temperaturaC);
+    actualizarServo(temperaturaC);
 
     delay(500);
   }
 }
 
-
-// Funciones
-
+// Función promedio de lecturas ADC
 float getADCPromedio(void) {
   int numeroLecturas = 10;
-  long sumaLecturas = 0;
+  int sumaLecturas = 0;
 
   for (int k = 0; k < numeroLecturas; k++) {
     sumaLecturas += analogRead(PIN_LM35);
-    delay(5);
+    delay(1);
   }
 
   float promedio = sumaLecturas / (numeroLecturas * 1.0);
@@ -96,22 +109,36 @@ float getADCPromedio(void) {
 }
 
 void actualizarSemaforo(float temp) {
-  // Apagar todo primero
+  //Apagar todas
   ledcWrite(CH_R, 0);
   ledcWrite(CH_G, 0);
   ledcWrite(CH_B, 0);
 
-  if (temp < 22.0) {
-    // Verde
-    ledcWrite(CH_G, 255);
-  } 
-  else if (temp >= 22.0 && temp < 25.0) {
-    // Amarillo 
-    ledcWrite(CH_B, 255);
-
-  } 
-  else {
-    // Rojo
-    ledcWrite(CH_R, 255);
+  if (temp < 26.0) {
+    ledcWrite(CH_G, 255); // Verde 
   }
+  else if (temp >= 26.0 && temp < 28.0) {
+    ledcWrite(CH_B, 255); // Amarillo
+  }
+  else {
+    ledcWrite(CH_R, 255); // Rojo
+  }
+}
+
+void actualizarServo(float temp) {
+  // Tres posiciones fijas según rango de temperatura
+  if (temp < 26.0) {
+    dutyServo = 6;   // Posición izquierda (frío)
+  }
+  else if (temp >= 26.0 && temp < 28.0) {
+    dutyServo = 19;  // Posición centro (templado)
+  }
+  else {
+    dutyServo = 32;  // Posición derecha (caliente)
+  }
+
+  ledcWrite(CH_SERVO, dutyServo);
+
+  Serial.print("Servo duty (posición fija): ");
+  Serial.println(dutyServo);
 }
