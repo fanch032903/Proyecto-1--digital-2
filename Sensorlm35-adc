@@ -2,13 +2,14 @@
 //Universidad del Valle de Guatemala
 //BE3029 - Electrónica Digital 2
 // Fátima Camposeco-23122
-//08/2025
 // Proyecto 1
 //MCU: ESP32 dev kit 1.0
 //********************************************/
 
 #include <Arduino.h>
 #include <stdint.h>
+#include "config.h"           // Personal para Adafruit 
+#include <AdafruitIO_WiFi.h>  // librería de Adafruit IO
 
 //Definir pines para sensor de temperatura
 #define PIN_LM35   34 //ADC del esp32
@@ -47,9 +48,27 @@ float promedioLecturas = 0;
 float temperaturaC = 0; 
 int dutyServo = 0;
 
+// Adafruit IO
+#define IO_LOOP_DELAY 5000
+unsigned long lastUpdate = 0;
+
+//Feeds 
+AdafruitIO_Feed *canaltemp = io.feed("temperatura");
+AdafruitIO_Feed *canalLED  = io.feed("relojtemp");
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(115200); //Se inicia la comunicación serial 
+
+  // --- Conexión a Adafruit IO
+  while(! Serial);
+  Serial.print("Conectando a Adafruit IO");
+  io.connect();
+  while(io.status() < AIO_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println();
+  Serial.println(io.statusText());
 
   //Pines Sensor y botón 
   pinMode(PIN_boton1, INPUT_PULLUP);
@@ -89,6 +108,19 @@ void loop() {
     //Actualizar LEDs y Servo
     actualizarSemaforo(temperaturaC);
     actualizarServo(temperaturaC);
+
+    // Enviar los datos a Adafruit 
+    canaltemp->save(temperaturaC);
+    //Visualizar color del semáforo 
+    if (temperaturaC < 26.0) {
+      canalLED->save((String)"#288e23"); // Verde 
+    }
+    else if (temperaturaC >= 26.0 && temperaturaC < 28.0) {
+      canalLED->save((String)"#d0e213"); // Amarillo
+    }
+    else {
+      canalLED->save((String)"#882522"); // Rojo
+    }
 
     delay(500);
   }
