@@ -142,3 +142,72 @@ void actualizarServo(float temp) {
   Serial.print("Servo duty (posición fija): ");
   Serial.println(dutyServo);
 }
+
+//===Display==
+
+// Configurar pines del display
+void configDisplay7(void) {
+  pinMode(dA, OUTPUT); pinMode(dB, OUTPUT);
+  pinMode(dC, OUTPUT); pinMode(dD, OUTPUT);
+  pinMode(dE, OUTPUT); pinMode(dF, OUTPUT);
+  pinMode(dG, OUTPUT); pinMode(dP, OUTPUT);
+
+  pinMode(DIG1, OUTPUT);
+  pinMode(DIG2, OUTPUT);
+  pinMode(DIG3, OUTPUT);
+
+  digitalWrite(DIG1, HIGH);
+  digitalWrite(DIG2, HIGH);
+  digitalWrite(DIG3, HIGH);
+}
+
+// Case para cada digito 
+void desplegarNumero(uint8_t n) {
+  switch (n) {
+    case 0: digitalWrite(dA,LOW); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,LOW); digitalWrite(dE,LOW); digitalWrite(dF,LOW); digitalWrite(dG,HIGH); break;
+    case 1: digitalWrite(dA,HIGH); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,HIGH); digitalWrite(dE,HIGH); digitalWrite(dF,HIGH); digitalWrite(dG,HIGH); break;
+    case 2: digitalWrite(dA,LOW); digitalWrite(dB,LOW); digitalWrite(dC,HIGH); digitalWrite(dD,LOW); digitalWrite(dE,LOW); digitalWrite(dF,HIGH); digitalWrite(dG,LOW); break;
+    case 3: digitalWrite(dA,LOW); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,LOW); digitalWrite(dE,HIGH); digitalWrite(dF,HIGH); digitalWrite(dG,LOW); break;
+    case 4: digitalWrite(dA,HIGH); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,HIGH); digitalWrite(dE,HIGH); digitalWrite(dF,LOW); digitalWrite(dG,LOW); break;
+    case 5: digitalWrite(dA,LOW); digitalWrite(dB,HIGH); digitalWrite(dC,LOW); digitalWrite(dD,LOW); digitalWrite(dE,HIGH); digitalWrite(dF,LOW); digitalWrite(dG,LOW); break;
+    case 6: digitalWrite(dA,LOW); digitalWrite(dB,HIGH); digitalWrite(dC,LOW); digitalWrite(dD,LOW); digitalWrite(dE,LOW); digitalWrite(dF,LOW); digitalWrite(dG,LOW); break;
+    case 7: digitalWrite(dA,LOW); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,HIGH); digitalWrite(dE,HIGH); digitalWrite(dF,HIGH); digitalWrite(dG,HIGH); break;
+    case 8: digitalWrite(dA,LOW); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,LOW); digitalWrite(dE,LOW); digitalWrite(dF,LOW); digitalWrite(dG,LOW); break;
+    case 9: digitalWrite(dA,LOW); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,LOW); digitalWrite(dE,HIGH); digitalWrite(dF,LOW); digitalWrite(dG,LOW); break;
+    default: digitalWrite(dA,HIGH); digitalWrite(dB,HIGH); digitalWrite(dC,HIGH); digitalWrite(dD,HIGH); digitalWrite(dE,HIGH); digitalWrite(dF,HIGH); digitalWrite(dG,HIGH); break;
+  }
+}
+
+// Multiplexeo 3 dígitos con punto decimal
+void mostrarNumero(float valor) {
+  if (valor < 0) valor = 0;
+  if (valor > 99.9) valor = 99.9;
+
+  //Hacer el calculo para que se pueda redondear y ver el valor correcto
+  int t10 = (int)(valor * 10 + 0.5);
+  int decenas  = (t10 / 100) % 10;
+  int unidades = (t10 / 10) % 10;
+  int decimas  = t10 % 10; 
+
+  // Dígito 1
+  digitalWrite(DIG1, LOW);
+  desplegarNumero(decenas);
+  digitalWrite(dP, HIGH);
+  delay(3);
+  digitalWrite(DIG1, HIGH);
+
+  // Dígito 2 incluye el punto 
+  digitalWrite(DIG2, LOW);
+  desplegarNumero(unidades);
+  digitalWrite(dP, LOW); 
+  delay(3);
+  digitalWrite(DIG2, HIGH);
+
+  // Dígito 3
+  digitalWrite(DIG3, LOW);
+  desplegarNumero(decimas);
+  digitalWrite(dP, HIGH);
+  delay(3);
+  digitalWrite(DIG3, HIGH);
+}
+
