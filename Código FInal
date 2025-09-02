@@ -1,0 +1,249 @@
+//********************************************/
+// Universidad del Valle de Guatemala
+// BE3029 - Electrónica Digital 2
+// Proyecto 1
+// Fátima Camposeco - 23122
+// MCU: ESP32 Dev Kit 1.0
+//********************************************/
+
+// Librerías 
+#include <Arduino.h>
+#include <stdint.h>
+#include "config.h"           
+#include <AdafruitIO_WiFi.h>  
+
+// === Definir Pines ===
+// Segmentos
+#define dA 33
+#define dB 21
+#define dC 26
+#define dD 14
+#define dE 13
+#define dF 12
+#define dG 25
+#define dP 27  
+
+// Dígitos
+#define DIG1 22   
+#define DIG2 23   
+#define DIG3 32   
+
+// Sensor y botón
+#define PIN_LM35   34 
+#define PIN_boton1 18 
+
+// LED RGB
+#define LED_R 5  
+#define LED_G 2  
+#define LED_B 4  
+
+// Servo
+#define SERVO_PIN 19
+
+// Canales PWM
+#define CH_R 0 
+#define CH_G 1 
+#define CH_B 2 
+#define CH_SERVO 3 
+
+// Parámetros PWM
+#define FREQ 500
+#define RESOLUTION 8
+#define FREQ_SERVO 50
+#define RESOLUTION_SERVO 8
+
+// === Variables Globales ==
+int adcRaw = 0;
+float promedioLecturas = 0;
+float temperaturaC = 0;
+int dutyServo = 0;
+
+// Adafruit IO
+#define IO_LOOP_DELAY 5000
+unsigned long lastUpdate = 0;
+
+// Feeds 
+AdafruitIO_Feed *canaltemp = io.feed("temperatura");
+AdafruitIO_Feed *canalLED  = io.feed("relojtemp");
+
+// === Prototipos ===
+float getADCPromedio(void);
+void actualizarSemaforo(float temp);
+void actualizarServo(float temp);
+void configDisplay7(void);
+void desplegarNumero(uint8_t numero);
+void mostrarNumero(float valor);
+
+void setup() {
+  Serial.begin(115200); 
+  while(! Serial);
+
+  // --- Conexión a Adafruit IO
+  Serial.print("Conectando a Adafruit IO");
+  io.connect();
+  while(io.status() < AIO_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println();
+  Serial.println(io.statusText());
+
+  // Pines sensor y botón 
+  pinMode(PIN_boton1, INPUT_PULLUP);
+  pinMode(PIN_LM35, INPUT);
+
+  // PWM LEDs
+  ledcSetup(CH_R, FREQ, RESOLUTION);
+  ledcSetup(CH_G, FREQ, RESOLUTION);
+  ledcSetup(CH_B, FREQ, RESOLUTION);
+
+  ledcAttachPin(LED_R, CH_R);
+  ledcAttachPin(LED_G, CH_G);
+  ledcAttachPin(LED_B, CH_B);
+
+  // Servo
+  ledcSetup(CH_SERVO, FREQ_SERVO, RESOLUTION_SERVO);
+  ledcAttachPin(SERVO_PIN, CH_SERVO);
+  ledcWrite(CH_SERVO, 19);  
+
+  // Display 
+  configDisplay7();
+}
+
+void loop() {
+  io.run(); 
+
+  if (digitalRead(PIN_boton1) == LOW) {
+    promedioLecturas = getADCPromedio(); 
+    int mV = analogReadMilliVolts(PIN_LM35);
+    temperaturaC = mV / 10.0;  
+    Serial.print("ADC promedio: ");
+    Serial.println(promedioLecturas);
+    Serial.print("Temperatura: ");
+    Serial.print(temperaturaC);
+    Serial.println(" °C");
+
+    actualizarSemaforo(temperaturaC);
+    actualizarServo(temperaturaC);
+
+    // Refrescar display mientras muestro valor
+    unsigned long t0 = millis();
+    while (millis() - t0 < 300) {
+      mostrarNumero(temperaturaC);
+    }
+
+    // Publicar en Adafruit 
+    canaltemp->save(temperaturaC);
+    if (temperaturaC < 30.0) {
+      canalLED->save((String)"#288e23"); // Verde 
+    } else if (temperaturaC >= 30.0 && temperaturaC < 33.0) {
+      canalLED->save((String)"#d0e213"); // Amarillo
+    } else {
+      canalLED->save((String)"#f40f07ff"); // Rojo
+    }
+    delay(500);
+  }
+}
+
+// === FUNCIONES ===
+float getADCPromedio(void) {
+  int numeroLecturas = 10;
+  int sumaLecturas = 0;
+  for (int k = 0; k < numeroLecturas; k++) {
+    sumaLecturas += analogRead(PIN_LM35);
+    delay(1);
+  }
+  return sumaLecturas / (numeroLecturas * 1.0);
+}
+
+// LEDs
+void actualizarSemaforo(float temp) {
+  ledcWrite(CH_R, 0);
+  ledcWrite(CH_G, 0);
+  ledcWrite(CH_B, 0);
+
+  if (temp < 30.0) {
+    ledcWrite(CH_G, 255); 
+  } else if (temp >= 30.0 && temp < 33.0) {
+    ledcWrite(CH_B, 255); 
+  } else {
+    ledcWrite(CH_R, 255); 
+  }
+}
+
+// Servo
+void actualizarServo(float temp) {
+  if (temp < 30.0) dutyServo = 13; 
+  else if (temp >= 30.0 && temp < 33.0) dutyServo = 19; 
+  else dutyServo = 26; 
+
+  ledcWrite(CH_SERVO, dutyServo);
+
+  Serial.print("Servo duty: "); 
+  Serial.println(dutyServo);
+}
+
+// === Display ===
+void configDisplay7(void) {
+  pinMode(dA, OUTPUT); pinMode(dB, OUTPUT);
+  pinMode(dC, OUTPUT); pinMode(dD, OUTPUT);
+  pinMode(dE, OUTPUT); pinMode(dF, OUTPUT);
+  pinMode(dG, OUTPUT); pinMode(dP, OUTPUT);
+
+  pinMode(DIG1, OUTPUT);
+  pinMode(DIG2, OUTPUT);
+  pinMode(DIG3, OUTPUT);
+
+  digitalWrite(DIG1, HIGH);
+  digitalWrite(DIG2, HIGH);
+  digitalWrite(DIG3, HIGH);
+}
+
+// Segmentos 
+void desplegarNumero(uint8_t n) {
+  switch (n) {
+    case 0: digitalWrite(dA,LOW); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,LOW); digitalWrite(dE,LOW); digitalWrite(dF,LOW); digitalWrite(dG,HIGH); break;
+    case 1: digitalWrite(dA,HIGH); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,HIGH); digitalWrite(dE,HIGH); digitalWrite(dF,HIGH); digitalWrite(dG,HIGH); break;
+    case 2: digitalWrite(dA,LOW); digitalWrite(dB,LOW); digitalWrite(dC,HIGH); digitalWrite(dD,LOW); digitalWrite(dE,LOW); digitalWrite(dF,HIGH); digitalWrite(dG,LOW); break;
+    case 3: digitalWrite(dA,LOW); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,LOW); digitalWrite(dE,HIGH); digitalWrite(dF,HIGH); digitalWrite(dG,LOW); break;
+    case 4: digitalWrite(dA,HIGH); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,HIGH); digitalWrite(dE,HIGH); digitalWrite(dF,LOW); digitalWrite(dG,LOW); break;
+    case 5: digitalWrite(dA,LOW); digitalWrite(dB,HIGH); digitalWrite(dC,LOW); digitalWrite(dD,LOW); digitalWrite(dE,HIGH); digitalWrite(dF,LOW); digitalWrite(dG,LOW); break;
+    case 6: digitalWrite(dA,LOW); digitalWrite(dB,HIGH); digitalWrite(dC,LOW); digitalWrite(dD,LOW); digitalWrite(dE,LOW); digitalWrite(dF,LOW); digitalWrite(dG,LOW); break;
+    case 7: digitalWrite(dA,LOW); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,HIGH); digitalWrite(dE,HIGH); digitalWrite(dF,HIGH); digitalWrite(dG,HIGH); break;
+    case 8: digitalWrite(dA,LOW); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,LOW); digitalWrite(dE,LOW); digitalWrite(dF,LOW); digitalWrite(dG,LOW); break;
+    case 9: digitalWrite(dA,LOW); digitalWrite(dB,LOW); digitalWrite(dC,LOW); digitalWrite(dD,LOW); digitalWrite(dE,HIGH); digitalWrite(dF,LOW); digitalWrite(dG,LOW); break;
+    default: digitalWrite(dA,HIGH); digitalWrite(dB,HIGH); digitalWrite(dC,HIGH); digitalWrite(dD,HIGH); digitalWrite(dE,HIGH); digitalWrite(dF,HIGH); digitalWrite(dG,HIGH); break;
+  }
+}
+
+// Multiplexeo
+void mostrarNumero(float valor) {
+  if (valor < 0) valor = 0;
+  if (valor > 99.9) valor = 99.9;
+
+  int t10 = (int)(valor * 10 + 0.5);
+  int decenas  = (t10 / 100) % 10;
+  int unidades = (t10 / 10) % 10;
+  int decimas  = t10 % 10; 
+
+  // Dígito 1
+  digitalWrite(DIG1, LOW);
+  desplegarNumero(decenas);
+  digitalWrite(dP, HIGH);  // punto apagado
+  delay(3);
+  digitalWrite(DIG1, HIGH);
+
+  // Dígito 2 con punto
+  digitalWrite(DIG2, LOW);
+  desplegarNumero(unidades);
+  digitalWrite(dP, LOW);   // punto encendido
+  delay(3);
+  digitalWrite(DIG2, HIGH);
+
+  // Dígito 3
+  digitalWrite(DIG3, LOW);
+  desplegarNumero(decimas);
+  digitalWrite(dP, HIGH);  // punto apagado
+  delay(3);
+  digitalWrite(DIG3, HIGH);
+}
